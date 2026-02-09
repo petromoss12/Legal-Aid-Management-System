@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Upload Student Results</title>
+    <style>
+        body{font-family: Arial, Helvetica, sans-serif;max-width:900px;margin:20px auto}
+        table{border-collapse:collapse}
+        table td, table th{border:1px solid #ccc;padding:6px}
+    </style>
+</head>
+<body>
+
+<h2>Upload Student Results (Excel or CSV)</h2>
+<p>Supported: <strong>.xlsx</strong>, <strong>.xls</strong>, <strong>.csv</strong> (if PhpSpreadsheet not installed, use CSV).</p>
+
+<form id="uploadForm" enctype="multipart/form-data">
+    <input type="file" name="excel" accept=".xlsx,.xls,.csv" required>
+    <br><br>
+    <button type="submit">Upload and Generate Results</button>
+</form>
+
+<p>CSV template (headers): <code>student_id,name,course,score,grade</code></p>
+
+<div id="result"></div>
+
+<script>
+document.getElementById("uploadForm").addEventListener("submit", function(e) {
+    e.preventDefault();
+
+    let formData = new FormData(this);
+
+    fetch("upload.php", {
+        method: "POST",
+        body: formData
+    })
+    .then(res => res.text())
+    .then(data => {
+        document.getElementById("result").innerHTML = data;
+    })
+    .catch(err => {
+        document.getElementById("result").innerText = 'Error: '+err;
+    });
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,20 @@
+RewriteEngine On
+RewriteBase /scan/backend/
+
+# Handle OPTIONS preflight requests FIRST - before any redirects
+RewriteCond %{REQUEST_METHOD} ^OPTIONS
+RewriteRule ^api/(.*)$ api/router.php [L,QSA]
+
+# Route all API requests through router.php (except actual .php files)
+# Allow direct access to .php files in api directory
+RewriteCond %{REQUEST_URI} ^/scan/backend/api/
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !\.php$
+RewriteRule ^api/(.*)$ api/router.php [L,QSA]
+
+# Allow CORS for API requests
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type, Authorization"
+</IfModule>

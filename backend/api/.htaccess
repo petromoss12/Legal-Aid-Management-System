@@ -1,0 +1,25 @@
+# Handle OPTIONS preflight requests before any redirects
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /scan/backend/api/
+    
+    # Handle OPTIONS requests first - prevent redirects
+    RewriteCond %{REQUEST_METHOD} ^OPTIONS
+    RewriteRule .* - [L]
+
+     # Don't rewrite requests to actual files or directories
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+
+    # Rewrite all other requests to index.php
+    RewriteRule ^(.*)$ index.php [L,QSA]
+
+</IfModule>
+
+# Set CORS headers for all requests
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type, Authorization"
+</IfModule>
+

@@ -82,6 +82,17 @@ function LawyerList() {
     }
   };
 
+  const handleDeactivate = async (lawyerId) => {
+    try{
+      const response = await api.delete(`/lawyers/${lawyerId}`);
+      console.log('Verify response:', response);
+      toast.success('Account deactivated');
+    }catch(error){
+      console.error('Error deactivating account:', error.response?.data || error.message, error);
+      toast.error(error.response?.data?.message || 'Error deactivating account');
+    }
+  }
+
   if (loading) {
     return <div className="container"><div className="loading">Loading...</div></div>;
   }
@@ -155,6 +166,13 @@ function LawyerList() {
                           style={{ padding: '5px 10px', fontSize: '12px' }}
                         >
                           {lawyer.verified ? 'Unverify' : 'Verify'}
+                        </button>
+                        <button
+                          onClick={() => handleDeactivate(lawyer.lawyer_id)}
+                          className={'btn btn-danger'}
+                          style={{ padding: '5px 10px', fontSize: '12px' }}
+                        >
+                        Deactivate
                         </button>
                       </>
                     )}

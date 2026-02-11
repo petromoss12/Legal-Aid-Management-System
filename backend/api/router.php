@@ -37,8 +37,13 @@ error_log("Router - Parsed path: " . $path);
 error_log("Router - Method: " . $request_method);
 
 // Route to appropriate file
+// Handle lookup tables route
+if ($path === 'lookup' || $path === 'lookup/') {
+    require_once __DIR__ . '/lookup.php';
+    exit();
+}
 // Handle auth/login route
-if (preg_match('#^auth/login/?$#', $path)) {
+elseif (preg_match('#^auth/login/?$#', $path)) {
     if ($request_method === 'POST') {
         require_once __DIR__ . '/auth/login.php';
         exit();

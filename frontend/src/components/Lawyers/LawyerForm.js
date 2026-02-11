@@ -12,7 +12,15 @@ function LawyerForm() {
   const [formData, setFormData] = useState({
     name: '',
     provider_type: '',
+    provider_type_other: '',
     registration_status: '',
+    registration_year: '',
+    registration_number: '',
+    registration_stage: '',
+    process_more_than_21_days: '',
+    process_days: '',
+    registrar_responded_in_21_days: '',
+    respond_to_registrar_days: '',
     license_status: '',
     phone: '',
     email: '',
@@ -41,12 +49,22 @@ function LawyerForm() {
   }, [id]);
 
   const fetchOptions = async () => {
-    // In a real app, you'd fetch these from the API
-    setOptions({
-      areasOfLaw: ['Criminal Law', 'Civil Law', 'Family Law', 'Commercial Law', 'Constitutional Law', 'Labor Law', 'Property Law', 'Immigration Law'],
-      services: ['Legal Representation', 'Legal Advice/Counselling', 'Mediation/ADR', 'Legal Education', 'Document Drafting'],
-      targetClients: ['Women', 'Children', 'Persons with Disabilities', 'Prisoners', 'Refugees', 'General Public']
-    });
+    try {
+      const response = await api.get('/lookup');
+      setOptions({
+        areasOfLaw: response.data.areasOfLaw.map(item => item.area_name),
+        services: response.data.services.map(item => item.service_name),
+        targetClients: response.data.targetClients.map(item => item.client_type)
+      });
+    } catch (error) {
+      console.error('Error fetching options:', error);
+      // Fallback to hardcoded values if API fails
+      setOptions({
+        areasOfLaw: ['Criminal Law', 'Civil Law', 'Family Law', 'Commercial Law', 'Constitutional Law', 'Labor Law', 'Property Law', 'Immigration Law'],
+        services: ['Legal Representation', 'Legal Advice/Counselling', 'Mediation/ADR', 'Legal Education', 'Document Drafting'],
+        targetClients: ['Women', 'Children', 'Persons with Disabilities', 'Prisoners', 'Refugees', 'General Public']
+      });
+    }
   };
 
   const fetchLawyer = async () => {
@@ -54,10 +72,33 @@ function LawyerForm() {
       const response = await api.get(`/lawyers/${id}`);
       const lawyer = response.data;
       
+      // Check if provider_type is a standard option or custom
+      const standardProviderTypes = [
+        'Law firm', 'NGO', 'Paralegal', 'CSO', 'CBO', 'FBO',
+        'Academic/Training Institution', 'Mandated Stakeholders', 'Other'
+      ];
+      
+      let provider_type = lawyer.provider_type || '';
+      let provider_type_other = '';
+      
+      // If provider_type is not in the standard list, treat it as 'Other' with custom value
+      if (provider_type && !standardProviderTypes.includes(provider_type)) {
+        provider_type_other = provider_type;
+        provider_type = 'Other';
+      }
+      
       setFormData({
         name: lawyer.name || '',
-        provider_type: lawyer.provider_type || '',
+        provider_type: provider_type,
+        provider_type_other: provider_type_other,
         registration_status: lawyer.registration_status || '',
+        registration_year: lawyer.registration_year || '',
+        registration_number: lawyer.registration_number || '',
+        registration_stage: lawyer.registration_stage || '',
+        process_more_than_21_days: lawyer.process_more_than_21_days || '',
+        process_days: lawyer.process_days || '',
+        registrar_responded_in_21_days: lawyer.registrar_responded_in_21_days || '',
+        respond_to_registrar_days: lawyer.respond_to_registrar_days || '',
         license_status: lawyer.license_status || '',
         phone: lawyer.phone || '',
         email: lawyer.email || '',
@@ -144,19 +185,96 @@ function LawyerForm() {
     e.preventDefault();
     setLoading(true);
 
+    // Validation: Check if selected registration_status requires specific fields to be filled
+    if (formData.registration_status === 'Registered with MoCLA') {
+      if (!formData.registration_year || !formData.registration_number) {
+        toast.error('Please fill in Registration Year and Number for Registered status');
+        setLoading(false);
+        return;
+      }
+    } else if (formData.registration_status === 'In Process') {
+      if (!formData.registration_stage) {
+        toast.error('Please fill in the registration stage');
+        setLoading(false);
+        return;
+      }
+      if (!formData.process_more_than_21_days || formData.process_more_than_21_days < 0) {
+        toast.error('Please answer: Has the process taken more than 21 days?');
+        setLoading(false);
+        return;
+      }
+      if (formData.process_more_than_21_days === 'yes' && !formData.process_days) {
+        toast.error('Please enter the number of days');
+        setLoading(false);
+        return;
+      }
+      if (formData.process_more_than_21_days === 'no' && !formData.registrar_responded_in_21_days) {
+        toast.error('Please answer: Did the registrar respond within 21 days?');
+        setLoading(false);
+        return;
+      }
+      if (formData.registrar_responded_in_21_days === 'yes' && !formData.respond_to_registrar_days) {
+        toast.error('Please enter the number of days to respond to registrar');
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
       // Log the request details
       const endpoint = isEdit ? `/lawyers/${id}` : '/lawyers/index.php';
       const method = isEdit ? 'PUT' : 'POST';
       console.log(`Making ${method} request to: ${api.defaults.baseURL}${endpoint}`);
 
+      // Prepare payload - start with form data
+      const payload = { ...formData };
+      
+      // Clear conditional fields based on registration_status
+      if (payload.registration_status === 'Registered with MoCLA') {
+        // Keep: registration_year, registration_number
+        // Clear: In Process and Not Registered fields
+        payload.registration_stage = '';
+        payload.process_more_than_21_days = '';
+        payload.process_days = null;
+        payload.registrar_responded_in_21_days = '';
+        payload.respond_to_registrar_days = null;
+      } else if (payload.registration_status === 'In Process') {
+        // Keep: registration_stage, process_more_than_21_days, process_days, registrar_responded_in_21_days, respond_to_registrar_days
+        // Clear: Registered fields
+        payload.registration_year = '';
+        payload.registration_number = '';
+      } else if (payload.registration_status === 'Not Registered') {
+        // Clear all registration conditional fields
+        payload.registration_year = '';
+        payload.registration_number = '';
+        payload.registration_stage = '';
+        payload.process_more_than_21_days = '';
+        payload.process_days = null;
+        payload.registrar_responded_in_21_days = '';
+        payload.respond_to_registrar_days = null;
+      }
+      
+      // Convert numeric fields
+      payload.process_days = payload.process_days ? parseInt(payload.process_days) : null;
+      payload.respond_to_registrar_days = payload.respond_to_registrar_days ? parseInt(payload.respond_to_registrar_days) : null;
+
       let response;
+      
+      // Merge 'Other' provider type into provider_type before submit
+      if (payload.provider_type_other && payload.provider_type_other.trim() !== '') {
+        payload.provider_type = payload.provider_type_other.trim();
+      }
+
+      console.log('Payload being sent:', payload);
+
       if (isEdit) {
-        response = await api.put(`/lawyers/${id}`, formData);
+        response = await api.put(`/lawyers/${id}`, payload);
       } else {
         // Use direct endpoint to bypass router issues
-        response = await api.post('/lawyers/index.php', formData);
+        response = await api.post('/lawyers/index.php', payload);
       }
+
+      console.log('Response from backend:', response);
 
       // Success - show message and navigate
       toast.success(isEdit ? 'Lawyer profile updated successfully' : 'Lawyer profile created successfully');
@@ -174,7 +292,6 @@ function LawyerForm() {
         const status = error.response.status;
         // Only show error if it's actually an error status (not 2xx)
         if (status >= 200 && status < 300) {
-          // This is actually a success response, treat it as success
           toast.success(isEdit ? 'Lawyer profile updated successfully' : 'Lawyer profile created successfully');
           navigate('/lawyers');
           return;
@@ -196,6 +313,7 @@ function LawyerForm() {
   };
 
   return (
+    <>
     <div className="container">
       <h1>{isEdit ? 'Edit Lawyer Profile' : 'Create New Lawyer Profile'}</h1>
 
@@ -226,21 +344,191 @@ function LawyerForm() {
                 <option value="Law firm">Law firm</option>
                 <option value="NGO">NGO</option>
                 <option value="Paralegal">Paralegal</option>
+                <option value="CSO">CSO</option>
+                <option value="CBO">CBO</option>
+                <option value="FBO">FBO</option>
+                <option value="Academic/Training Institution">Academic/Training Institution</option>
+                <option value="Mandated Stakeholders">Mandated Stakeholders e.g. TLS</option>
+                <option value="Other">Other</option>
+
               </select>
             </div>
           </div>
 
+          {formData.provider_type === 'Other' && (
+            <div className="form-row">
+              <div className="form-group">
+                <label>Specify Provider Type</label>
+                <input
+                  type="text"
+                  name="provider_type_other"
+                  value={formData.provider_type_other}
+                  onChange={handleChange}
+                  placeholder="Enter provider type"
+                />
+              </div>
+            </div>
+          )}
+
           <div className="form-row">
             <div className="form-group">
               <label>Registration Status</label>
-              <input
-                type="text"
+              <select 
                 name="registration_status"
                 value={formData.registration_status}
                 onChange={handleChange}
-              />
+                required
+              >
+                <option value="">Select...</option>
+                <option value="Registered with MoCLA">Registered with MoCLA</option>
+                <option value="In Process">In process of registration</option>
+                <option value="Not Registered">Not registered</option>
+              </select>
             </div>
+          </div>
 
+          {formData.registration_status === 'Registered with MoCLA' && (
+            <div className="form-row">
+              <div className="form-group">
+                <label>Registration Year *</label>
+                <input
+                  type="text"
+                  name="registration_year"
+                  value={formData.registration_year}
+                  onChange={handleChange}
+                  placeholder="e.g., 2020"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Registration Number *</label>
+                <input
+                  type="text"
+                  name="registration_number"
+                  value={formData.registration_number}
+                  onChange={handleChange}
+                  placeholder="Enter registration number"
+                  required
+                />
+              </div>
+            </div>
+          )}
+          
+          {formData.registration_status === 'In Process' && (
+            <div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>What stage is your registration at? *</label>
+                  <input
+                    type="text"
+                    name="registration_stage"
+                    value={formData.registration_stage}
+                    onChange={handleChange}
+                    placeholder="Describe current stage"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Has the process taken more than 21 days? *</label>
+                  <div style={{ display: 'flex', gap: '20px', marginTop: '8px' }}>
+                    <label>
+                      <input
+                        type="radio"
+                        name="process_more_than_21_days"
+                        value="yes"
+                        checked={formData.process_more_than_21_days === 'yes'}
+                        onChange={handleChange}
+                        required
+                      />
+                      Yes
+                    </label>
+                    <label>
+                      <input
+                        type="radio"
+                        name="process_more_than_21_days"
+                        value="no"
+                        checked={formData.process_more_than_21_days === 'no'}
+                        onChange={handleChange}
+                        required
+                      />
+                      No
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {formData.process_more_than_21_days === 'yes' && (
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>How many days did it take? *</label>
+                    <input
+                      type="number"
+                      name="process_days"
+                      value={formData.process_days}
+                      onChange={handleChange}
+                      placeholder="Enter number of days"
+                      min="0"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+
+              {formData.process_more_than_21_days === 'no' && (
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Did the registrar respond (request for clarification or other communication) within 21 days of your application submission? *</label>
+                    <div style={{ display: 'flex', gap: '20px', marginTop: '8px' }}>
+                      <label>
+                        <input
+                          type="radio"
+                          name="registrar_responded_in_21_days"
+                          value="yes"
+                          checked={formData.registrar_responded_in_21_days === 'yes'}
+                          onChange={handleChange}
+                          required
+                        />
+                        Yes
+                      </label>
+                      <label>
+                        <input
+                          type="radio"
+                          name="registrar_responded_in_21_days"
+                          value="no"
+                          checked={formData.registrar_responded_in_21_days === 'no'}
+                          onChange={handleChange}
+                          required
+                        />
+                        No
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {formData.registrar_responded_in_21_days === 'yes' && (
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Approximately how long did you take to respond to the registrar's request(s)? (in days) *</label>
+                    <input
+                      type="number"
+                      name="respond_to_registrar_days"
+                      value={formData.respond_to_registrar_days}
+                      onChange={handleChange}
+                      placeholder="Enter number of days"
+                      min="0"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          <div className="form-row">
             <div className="form-group">
               <label>License Status</label>
               <select
@@ -270,15 +558,13 @@ function LawyerForm() {
             </div>
 
             <div className="form-group">
-              <label>
+              <label>Verified</label>
                 <input
                   type="checkbox"
                   name="verified"
                   checked={formData.verified}
                   onChange={handleChange}
                 />
-                Verified
-              </label>
             </div>
           </div>
         </div>
@@ -454,6 +740,7 @@ function LawyerForm() {
         </div>
       </form>
     </div>
+    </>
   );
 }
 

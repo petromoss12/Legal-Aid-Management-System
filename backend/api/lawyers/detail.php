@@ -163,6 +163,10 @@ function handleUpdateLawyer($db, $lawyer_id, $user_id) {
         $query = "UPDATE lawyer_profiles SET
                   name = :name, provider_type = :provider_type, 
                   registration_status = :registration_status,
+                  registration_year = :registration_year, registration_number = :registration_number,
+                  registration_stage = :registration_stage, process_more_than_21_days = :process_more_than_21_days,
+                  process_days = :process_days, registrar_responded_in_21_days = :registrar_responded_in_21_days,
+                  respond_to_registrar_days = :respond_to_registrar_days, 
                   license_status = :license_status, phone = :phone,
                   email = :email, website = :website,
                   mode_of_operation = :mode_of_operation, verified = :verified
@@ -173,14 +177,51 @@ function handleUpdateLawyer($db, $lawyer_id, $user_id) {
         $stmt->bindParam(':name', $data['name']);
         $stmt->bindParam(':provider_type', $data['provider_type']);
         $stmt->bindParam(':registration_status', $data['registration_status']);
-        $stmt->bindParam(':license_status', $data['license_status']);
-        $stmt->bindParam(':phone', $data['phone']);
-        $stmt->bindParam(':email', $data['email']);
-        $stmt->bindParam(':website', $data['website']);
-        $stmt->bindParam(':mode_of_operation', $data['mode_of_operation']);
+        
+        $registration_year = !empty($data['registration_year']) ? $data['registration_year'] : null;
+        $stmt->bindValue(':registration_year', $registration_year);
+        
+        $registration_number = !empty($data['registration_number']) ? $data['registration_number'] : null;
+        $stmt->bindValue(':registration_number', $registration_number);
+        
+        $registration_stage = !empty($data['registration_stage']) ? $data['registration_stage'] : null;
+        $stmt->bindValue(':registration_stage', $registration_stage);
+        
+        $process_more_than_21_days = !empty($data['process_more_than_21_days']) ? $data['process_more_than_21_days'] : null;
+        $stmt->bindValue(':process_more_than_21_days', $process_more_than_21_days);
+        
+        $process_days = (!empty($data['process_days'])) ? (int)$data['process_days'] : null;
+        $stmt->bindValue(':process_days', $process_days, $process_days === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+        
+        $registrar_responded_in_21_days = !empty($data['registrar_responded_in_21_days']) ? $data['registrar_responded_in_21_days'] : null;
+        $stmt->bindValue(':registrar_responded_in_21_days', $registrar_responded_in_21_days);
+        
+        $respond_days = (!empty($data['respond_to_registrar_days'])) ? (int)$data['respond_to_registrar_days'] : null;
+        $stmt->bindValue(':respond_to_registrar_days', $respond_days, $respond_days === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+        
+        // Convert empty strings to NULL for constrained fields
+        $license_status = !empty($data['license_status']) ? $data['license_status'] : null;
+        $stmt->bindValue(':license_status', $license_status);
+        
+        $phone = $data['phone'] ?? null;
+        $stmt->bindValue(':phone', $phone);
+        
+        $email = $data['email'] ?? null;
+        $stmt->bindValue(':email', $email);
+        
+        $website = $data['website'] ?? null;
+        $stmt->bindValue(':website', $website);
+        
+        $mode_of_operation = !empty($data['mode_of_operation']) ? $data['mode_of_operation'] : null;
+        $stmt->bindValue(':mode_of_operation', $mode_of_operation);
+        
         $verified = $data['verified'] ?? false;
         $stmt->bindParam(':verified', $verified, PDO::PARAM_BOOL);
-        $stmt->execute();
+        
+        error_log("About to execute UPDATE for lawyer_id: " . $lawyer_id);
+        $result = $stmt->execute();
+        error_log("UPDATE execute result: " . ($result ? 'true' : 'false'));
+        error_log("Rows affected: " . $stmt->rowCount());
 
         // Delete and reinsert locations
         $delLoc = $db->prepare("DELETE FROM locations WHERE lawyer_id = :lawyer_id");
@@ -265,7 +306,9 @@ function handleUpdateLawyer($db, $lawyer_id, $user_id) {
         $historyStmt->bindParam(':description', $description);
         $historyStmt->execute();
 
+        error_log("About to commit transaction");
         $db->commit();
+        error_log("Transaction committed successfully");
         echo json_encode(["message" => "Lawyer profile updated successfully"]);
     } catch (PDOException $e) {
         $db->rollBack();

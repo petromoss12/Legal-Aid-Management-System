@@ -51,6 +51,30 @@ function LawyerDetail() {
           <div className="info-grid">
             <div><strong>Provider Type:</strong> {lawyer.provider_type}</div>
             <div><strong>Registration Status:</strong> {lawyer.registration_status || 'N/A'}</div>
+            
+            {lawyer.registration_status === 'Registered with MoCLA' && (
+              <>
+                <div><strong>Registration Year:</strong> {lawyer.registration_year || 'N/A'}</div>
+                <div><strong>Registration Number:</strong> {lawyer.registration_number || 'N/A'}</div>
+              </>
+            )}
+            
+            {lawyer.registration_status === 'In Process' && (
+              <>
+                <div><strong>Registration Stage:</strong> {lawyer.registration_stage || 'N/A'}</div>
+                <div><strong>Has the Registration Process taken more than 21 days:</strong> {lawyer.process_more_than_21_days || 'N/A'}</div>
+                {lawyer.process_more_than_21_days === 'yes' && (
+                  <div><strong>Registration Process Days:</strong> {lawyer.process_days || 'N/A'}</div>
+                )}
+                {lawyer.process_more_than_21_days === 'no' && (
+                  <div><strong>Did Registrar Respond within 21 days:</strong> {lawyer.registrar_responded_in_21_days || 'N/A'}</div>
+                )}
+                {lawyer.registrar_responded_in_21_days === 'yes' && (
+                  <div><strong>Time Taken to Respond to Registrar (days):</strong> {lawyer.respond_to_registrar_days || 'N/A'}</div>
+                )}
+              </>
+            )}
+            
             <div><strong>License Status:</strong> 
               {lawyer.license_status && (
                 <span className={`badge ${lawyer.license_status === 'ACTIVE' ? 'badge-success' : 'badge-danger'}`}>

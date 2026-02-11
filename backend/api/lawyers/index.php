@@ -28,7 +28,7 @@ try {
 $database = new Database();
 $db = $database->getConnection();
 
-// Check if database connection failed
+// Check if database connection fail
 if (!$db) {
     http_response_code(500);
     echo json_encode(["message" => "Database connection failed. Please check your database configuration."]);
@@ -52,6 +52,22 @@ switch ($method) {
         }
         handleCreateLawyer($db, $user['user_id']);
         break;
+    case 'PUT':
+        $user = getAuthUser();
+        if(!$user || $user['role'] !== 'ADMIN'){
+            http_response_code(403);
+            echo json_encode(["message" => "Admin access required"]);
+            exit();
+        }
+        $lawyer_id = $_GET['id'] ?? null;
+        if(!$lawyer_id){
+            http_response_code(400);
+            echo json_encode(["message" => "Lawyer ID required"]);
+            exit();
+        }
+        handleUpdateLawyer($db, $user['user_id'], $lawyer_id);
+        break;
+
     default:
         http_response_code(405);
         echo json_encode(["message" => "Method not allowed"]);
@@ -68,7 +84,9 @@ function handleGetLawyers($db) {
     $offset = ($page - 1) * $limit;
 
     $query = "SELECT DISTINCT 
-                lp.lawyer_id, lp.name, lp.provider_type, lp.registration_status,
+                lp.lawyer_id, lp.name, lp.provider_type, lp.registration_status, lp.registration_year,
+                lp.registration_number, lp.registration_stage, lp.process_more_than_21_days, lp.process_days,
+                lp.registrar_responded_in_21_days, lp.respond_to_registrar_days,
                 lp.license_status, lp.phone, lp.email, lp.website, 
                 lp.mode_of_operation, lp.verified
               FROM lawyer_profiles lp
@@ -186,6 +204,104 @@ function handleGetLawyers($db) {
     }
 }
 
+function handleUpdateLawyer($db, $admin_id, $lawyer_id){
+        $data = json_decode(file_get_contents("php://input"), true);
+
+        try{
+            $db->beginTransaction();
+
+            $query = "UPDATE lawyer_profiles SET 
+                        name = :name, provider_type = :provider_type, registration_status = :registration_status,
+                        registration_year = :registration_year, registration_number = :registration_number, 
+                        registration_stage = :registration_stage, process_more_than_21_days = :process_more_than_21_days,
+                        process_days = :process_days, registrar_responded_in_21_days = :registrar_responded_in_21_days,
+                        respond_to_registrar_days = :respond_to_registrar_days,
+                        license_status = :license_status,
+                        phone = :phone, email = :email, website = :website, 
+                        mode_of_operation = :mode_of_operation, verified = :verified
+                     WHERE lawyer_id = :lawyer_id";
+
+            $stmt = $db->prepare($query);
+            $stmt->bindValue(':lawyer_id', $lawyer_id, PDO::PARAM_INT);
+            $stmt->bindValue(':name', $data['name']);
+            $stmt->bindValue(':provider_type', $data['provider_type']);
+            $stmt->bindValue(':registration_status', $data['registration_status'] ?? null);
+
+            $stmt->bindValue(':registration_stage', $data['registration_stage'] ?? null);
+            $stmt->bindValue(':process_more_than_21_days', $data['process_more_than_21_days'] ?? null);
+        
+            $p_days = (!empty($data['process_days'])) ? (int)$data['process_days'] : null;
+            $stmt->bindValue(':process_days', $p_days, $p_days === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+            $stmt->bindValue(':registrar_responded_in_21_days', $data['registrar_responded_in_21_days'] ?? null);
+        
+            $r_days = (!empty($data['respond_to_registrar_days'])) ? (int)$data['respond_to_registrar_days'] : null;
+            $stmt->bindValue(':respond_to_registrar_days', $r_days, $r_days === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+
+            $stmt->bindValue(':registration_year', $data['registration_year'] ?? null);
+            $stmt->bindValue(':registration_number', $data['registration_number'] ?? null);
+
+            $stmt->bindValue(':license_status', $data['license_status'] ?? 'ACTIVE');
+            $stmt->bindValue(':phone', $data['phone'] ?? null);
+            $stmt->bindValue(':email', $data['email'] ?? null);
+            $stmt->bindValue(':website', $data['website'] ?? null);
+            $stmt->bindValue(':mode_of_operation', $data['mode_of_operation'] ?? null);
+            $stmt->bindValue(':verified', isset($data['verified']) ? (bool)$data['verified'] : false, PDO::PARAM_BOOL);
+            $stmt->execute();
+
+            $db->prepare("DELETE FROM locations WHERE lawyer_id = ?")->execute([$lawyer_id]);
+            $db->prepare("DELETE FROM lawyer_area_of_law WHERE lawyer_id = ?")->execute([$lawyer_id]);
+            $db->prepare("DELETE FROM lawyer_services WHERE lawyer_id = ?")->execute([$lawyer_id]);
+            $db->prepare("DELETE FROM lawyer_target_clients WHERE lawyer_id = ?")->execute([$lawyer_id]);
+
+            if(isset($data['locations']) && is_array($data['locations'])){
+                $locStmt = $db->prepare("INSERT INTO locations (lawyer_id, region, district, ward, village, street) VALUES (?,?,?,?,?,?)");
+                foreach ($data['locations'] as $loc) {
+                    if(!empty($loc['region'])) {
+                        $locStmt->execute([$lawyer_id, $loc['region'], $loc['district'] ?? null, $loc['ward'] ?? null, $loc['village'] ?? null, $loc['street'] ?? null]);
+                    }
+                }
+            }
+
+            if (isset($data['areas_of_law']) && is_array($data['areas_of_law'])) {
+                $areaStmt = $db->prepare("INSERT INTO lawyer_area_of_law (lawyer_id, area_id, case_percentage) VALUES (?, (SELECT area_id FROM areas_of_law WHERE area_name = ?), ?)");
+                foreach ($data['areas_of_law'] as $area) {
+                    if (!empty($area['area_name'])) {
+                        $areaStmt->execute([$lawyer_id, $area['area_name'], $area['case_percentage'] ?? 0]);
+                    }
+                }
+            }
+
+            if (isset($data['services']) && is_array($data['services'])) {
+                $servStmt = $db->prepare("INSERT INTO lawyer_services (lawyer_id, service_id) VALUES (?, (SELECT service_id FROM services WHERE service_name = ?))");
+                foreach ($data['services'] as $service) {
+                    if (!empty($service)) {
+                        $servStmt->execute([$lawyer_id, $service]);
+                    }
+                }
+            }
+
+            if (!empty($data['target_clients']) && is_array($data['target_clients'])) {
+                $tcStmt = $db->prepare("INSERT INTO lawyer_target_clients (lawyer_id, client_id) 
+                                   VALUES (?, (SELECT client_id FROM target_clients WHERE client_type = ?))");
+                foreach ($data['target_clients'] as $client) {
+                    if (!empty($client)) {
+                        $tcStmt->execute([$lawyer_id, $client]);
+                    }
+                }
+            }
+
+            $hStmt = $db->prepare("INSERT INTO profile_update_history (lawyer_id, updated_by, update_description) VALUES (?, ?, ?)");
+            $hStmt->execute([$lawyer_id, $admin_id, "Profile updated via Admin panel"]);
+
+            $db->commit();
+            echo json_encode(["message" => "Profile updated successfully"]);
+        }catch(Exception $e){
+            if($db->inTransaction()) $db->rollBack();
+            http_response_code(500);
+            echo json_encode(["message" => "Update error: " . $e->getMessage()]);
+        }
+}
+
 function handleCreateLawyer($db, $user_id) {
     // Check database connection
     if (!$db) {
@@ -195,6 +311,7 @@ function handleCreateLawyer($db, $user_id) {
     }
 
     $rawInput = file_get_contents("php://input");
+    error_log("Received Data: " . $rawInput); // This writes to your PHP error log
     $data = json_decode($rawInput, true);
 
     // Check if JSON decode failed
@@ -235,11 +352,13 @@ function handleCreateLawyer($db, $user_id) {
 
         // Create lawyer profile
         $query = "INSERT INTO lawyer_profiles 
-                  (user_id, name, provider_type, registration_status, license_status, 
-                   phone, email, website, mode_of_operation, verified)
+                  (user_id, name, provider_type, registration_status, registration_year, registration_number, registration_stage, 
+                    process_more_than_21_days, process_days, registrar_responded_in_21_days, respond_to_registrar_days,
+                    license_status, phone, email, website, mode_of_operation, verified)
                   VALUES 
-                  (:user_id, :name, :provider_type, :registration_status, :license_status,
-                   :phone, :email, :website, :mode_of_operation, :verified)
+                  (:user_id, :name, :provider_type, :registration_status, :registration_year, :registration_number, :registration_stage, 
+                    :process_more_than_21_days, :process_days, :registrar_responded_in_21_days, :respond_to_registrar_days,
+                    :license_status, :phone, :email, :website, :mode_of_operation, :verified)
                   RETURNING lawyer_id";
 
         $stmt = $db->prepare($query);
@@ -252,7 +371,13 @@ function handleCreateLawyer($db, $user_id) {
         $stmt->bindValue(':provider_type', $data['provider_type']);
         $registration_status = !empty($data['registration_status']) ? $data['registration_status'] : null;
         $stmt->bindValue(':registration_status', $registration_status, $registration_status !== null ? PDO::PARAM_STR : PDO::PARAM_NULL);
-        $license_status = !empty($data['license_status']) ? $data['license_status'] : null;
+        $stmt->bindValue(':registration_year', $data['registration_year'] ?? null);
+        $stmt->bindValue(':registration_number', $data['registration_number'] ?? null);
+        $stmt->bindValue(':registration_stage', $data['registration_stage'] ?? null);
+        $stmt->bindValue(':process_more_than_21_days', $data['process_more_than_21_days'] ?? null);
+        $stmt->bindValue(':process_days', !empty($data['process_days']) ? (int)$data['process_days'] : null, !empty($data['process_days']) ? PDO::PARAM_INT : PDO::PARAM_NULL);
+        $stmt->bindValue(':registrar_responded_in_21_days', $data['registrar_responded_in_21_days'] ?? null);
+        $stmt->bindValue(':respond_to_registrar_days', !empty($data['respond_to_registrar_days']) ? (int)$data['respond_to_registrar_days'] : null, !empty($data['respond_to_registrar_days']) ? PDO::PARAM_INT : PDO::PARAM_NULL);
         $stmt->bindValue(':license_status', $license_status, $license_status !== null ? PDO::PARAM_STR : PDO::PARAM_NULL);
         $phone = !empty($data['phone']) ? $data['phone'] : null;
         $stmt->bindValue(':phone', $phone, $phone !== null ? PDO::PARAM_STR : PDO::PARAM_NULL);

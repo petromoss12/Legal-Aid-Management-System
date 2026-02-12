@@ -131,6 +131,13 @@ function handleUpdateLawyer($db, $lawyer_id, $user_id) {
         $query = "UPDATE lawyer_profiles SET
                   name = :name, provider_type = :provider_type, 
                   registration_status = :registration_status,
+                  registration_year = :registration_year,
+                  registration_number = :registration_number,
+                  registration_stage = :registration_stage,
+                  process_more_than_21_days = :process_more_than_21_days,
+                  process_days = :process_days,
+                  registrar_responded_in_21_days = :registrar_responded_in_21_days,
+                  respond_to_registrar_days = :respond_to_registrar_days,
                   license_status = :license_status, phone = :phone,
                   email = :email, website = :website,
                   mode_of_operation = :mode_of_operation, verified = :verified
@@ -141,6 +148,13 @@ function handleUpdateLawyer($db, $lawyer_id, $user_id) {
         $stmt->bindParam(':name', $data['name']);
         $stmt->bindParam(':provider_type', $data['provider_type']);
         $stmt->bindParam(':registration_status', $data['registration_status']);
+        $stmt->bindParam(':registration_year', $data['registration_year']);
+        $stmt->bindParam(':registration_number', $data['registration_number']);
+        $stmt->bindParam(':registration_stage', $data['registration_stage']);
+        $stmt->bindParam(':process_more_than_21_days', $data['process_more_than_21_days']);
+        $stmt->bindParam(':process_days', $data['process_days']);
+        $stmt->bindParam(':registrar_responded_in_21_days', $data['registrar_responded_in_21_days']);
+        $stmt->bindParam(':respond_to_registrar_days', $data['respond_to_registrar_days']);
         $stmt->bindParam(':license_status', $data['license_status']);
         $stmt->bindParam(':phone', $data['phone']);
         $stmt->bindParam(':email', $data['email']);

@@ -16,7 +16,7 @@ function LawyerList() {
 
   const fetchLawyers = async () => {
     try {
-      const response = await api.get('/lawyers/index.php?limit=1000');
+      const response = await api.get('lawyers/?limit=1000');
       console.log('=== LAWYER FETCH DEBUG ===');
       console.log('Response status:', response.status);
       console.log('Response data type:', typeof response.data);
@@ -72,7 +72,7 @@ function LawyerList() {
         update_description: `Profile ${!currentStatus ? 'verified' : 'unverified'}`
       };
       console.log('Sending verify PUT for lawyer', lawyerId, payload);
-      const response = await api.put(`/lawyers/${lawyerId}`, payload);
+      const response = await api.put(`lawyers/${lawyerId}/`, payload);
       console.log('Verify response:', response);
       toast.success('Verification status updated');
       fetchLawyers();
@@ -84,7 +84,7 @@ function LawyerList() {
 
   const handleDeactivate = async (lawyerId) => {
     try{
-      const response = await api.delete(`/lawyers/${lawyerId}`);
+      const response = await api.delete(`lawyers/${lawyerId}`);
       console.log('Verify response:', response);
       toast.success('Account deactivated');
     }catch(error){

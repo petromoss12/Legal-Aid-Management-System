@@ -38,12 +38,12 @@ function Dashboard() {
         fundingRes,
         reportingRes
       ] = await Promise.all([
-        api.get('/dashboard/reports?type=overview'),
-        api.get('/dashboard/reports?type=lawyers_by_region'),
-        api.get('/dashboard/reports?type=areas_of_law_coverage'),
-        api.get('/dashboard/reports?type=license_status'),
-        api.get('/dashboard/reports?type=funding_distribution'),
-        api.get('/dashboard/reports?type=reporting_status')
+        api.get('dashboard/reports?type=overview'),
+        api.get('dashboard/reports/?type=lawyers_by_region'),
+        api.get('dashboard/reports?type=areas_of_law_coverage'),
+        api.get('dashboard/reports?type=license_status'),
+        api.get('dashboard/reports?type=funding_distribution'),
+        api.get('dashboard/reports?type=reporting_status')
       ]);
 
       console.log('Overview response:', overviewRes);

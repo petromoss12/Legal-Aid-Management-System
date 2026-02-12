@@ -79,6 +79,7 @@ function handleGetLawyers($db) {
     $area_of_law = $_GET['area_of_law'] ?? '';
     $service = $_GET['service'] ?? '';
     $license_status = $_GET['license_status'] ?? '';
+    $provider_type = $_GET['provider_type'] ?? '';
     $page = intval($_GET['page'] ?? 1);
     $limit = intval($_GET['limit'] ?? 20);
     $offset = ($page - 1) * $limit;
@@ -122,6 +123,16 @@ function handleGetLawyers($db) {
     if ($license_status) {
         $query .= " AND lp.license_status = :license_status";
         $params[':license_status'] = $license_status;
+    }
+
+    if ($provider_type) {
+        $query .= " AND lp.provider_type = :provider_type";
+        $params[':provider_type'] = $provider_type;
+    }
+
+    if ($provider_type) {
+        $query .= " AND lp.provider_type = :provider_type";
+        $params[':provider_type'] = $provider_type;
     }
 
     $query .= " ORDER BY lp.name LIMIT :limit OFFSET :offset";

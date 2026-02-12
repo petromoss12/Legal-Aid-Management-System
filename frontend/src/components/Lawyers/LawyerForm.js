@@ -50,7 +50,7 @@ function LawyerForm() {
 
   const fetchOptions = async () => {
     try {
-      const response = await api.get('/lookup');
+      const response = await api.get('lookup');
       setOptions({
         areasOfLaw: response.data.areasOfLaw.map(item => item.area_name),
         services: response.data.services.map(item => item.service_name),
@@ -69,7 +69,7 @@ function LawyerForm() {
 
   const fetchLawyer = async () => {
     try {
-      const response = await api.get(`/lawyers/${id}`);
+      const response = await api.get(`lawyers/${id}/`);
       const lawyer = response.data;
       
       // Check if provider_type is a standard option or custom
@@ -268,10 +268,10 @@ function LawyerForm() {
       console.log('Payload being sent:', payload);
 
       if (isEdit) {
-        response = await api.put(`/lawyers/${id}`, payload);
+        response = await api.put(`lawyers/${id}/`, payload);
       } else {
         // Use direct endpoint to bypass router issues
-        response = await api.post('/lawyers/index.php', payload);
+        response = await api.post('lawyers/', payload);
       }
 
       console.log('Response from backend:', response);

@@ -16,7 +16,7 @@ function LawyerDetail() {
 
   const fetchLawyer = async () => {
     try {
-      const response = await api.get(`/lawyers/${id}`);
+      const response = await api.get(`lawyers/${id}/`);
       console.log('Lawyer fetch response:', response.data);
       setLawyer(response.data);
     } catch (error) {

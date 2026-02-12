@@ -22,7 +22,7 @@ export function AuthProvider({ children }) {
     try {
       console.log('Attempting login for user:', username);
       // Use direct endpoint to bypass router issues
-      const response = await api.post('/auth/login_direct.php', {
+      const response = await api.post('auth/login_direct.php', {
         username,
         password
       });

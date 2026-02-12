@@ -11,12 +11,14 @@ function PublicSearch() {
     region: '',
     area_of_law: '',
     service: '',
-    license_status: ''
+    license_status: '',
+    provider_type: ''
   });
   const [options, setOptions] = useState({
     regions: [],
     areasOfLaw: [],
-    services: []
+    services: [],
+    providerTypes: []
   });
 
   useEffect(() => {
@@ -30,33 +32,67 @@ function PublicSearch() {
 
   const fetchOptions = async () => {
     try {
-      // Fetch available options for filters
-      const [regionsRes, areasRes, servicesRes] = await Promise.all([
-        api.get('/lawyers?limit=1000'),
-        api.get('/lawyers?limit=1000'),
-        api.get('/lawyers?limit=1000')
-      ]);
+      // Fetch lookup data (service types, areas of law, etc.)
+      let areasOfLaw = [];
+      let services = [];
+      
+      try {
+        const lookupRes = await api.get('lookup');
+        const lookupData = lookupRes.data;
+        console.log('Lookup data:', lookupData);
 
-      const allLawyers = regionsRes.data.data || [];
-      const uniqueRegions = [...new Set(allLawyers.flatMap(l => 
-        l.locations?.map(loc => loc.region) || []
-      ))].filter(Boolean);
+        areasOfLaw = lookupData.areasOfLaw?.map(item => item.area_name) || [];
+        services = lookupData.services?.map(item => item.service_name) || [];
+        console.log('Areas of Law from lookup:', areasOfLaw);
+        console.log('Services from lookup:', services);
+      } catch (lookupError) {
+        console.error('Lookup API error, using fallback:', lookupError);
+        // Fallback areas of law if API fails
+        areasOfLaw = ['Criminal Law', 'Civil Law', 'Family Law', 'Commercial Law', 'Constitutional Law', 'Labor Law', 'Property Law', 'Immigration Law'];
+        // Fallback services if API fails
+        services = ['Legal Representation', 'Legal Advice/Counselling', 'Mediation/ADR', 'Legal Education', 'Document Drafting'];
+      }
 
-      const uniqueAreas = [...new Set(allLawyers.flatMap(l => 
-        l.areas_of_law?.map(a => a.area_name) || []
-      ))].filter(Boolean);
+      // Provider types - hardcoded as they don't come from lookup
+      const providerTypes = [
+        'Law firm',
+        'NGO',
+        'Paralegal',
+        'CSO',
+        'CBO',
+        'FBO',
+        'Academic/Training Institution',
+        'Mandated Stakeholders',
+        'Other'
+      ];
 
-      const uniqueServices = [...new Set(allLawyers.flatMap(l => 
-        l.services || []
-      ))].filter(Boolean);
+      // Fetch lawyers to get available regions
+      let uniqueRegions = [];
+      try {
+        const lawyersRes = await api.get('lawyers?limit=1000');
+        const allLawyers = lawyersRes.data.data || [];
+        console.log('All lawyers:', allLawyers);
+        uniqueRegions = [...new Set(allLawyers.flatMap(l => 
+          l.locations?.map(loc => loc.region) || []
+        ))].filter(Boolean).sort();
+        console.log('Regions:', uniqueRegions);
+      } catch (lawyersError) {
+        console.error('Lawyers API error:', lawyersError);
+        uniqueRegions = [];
+      }
 
-      setOptions({
+      const finalOptions = {
         regions: uniqueRegions,
-        areasOfLaw: uniqueAreas,
-        services: uniqueServices
-      });
+        areasOfLaw: areasOfLaw,
+        services: services,
+        providerTypes: providerTypes
+      };
+      
+      console.log('Final options:', finalOptions);
+      setOptions(finalOptions);
+      console.log('Options set successfully');
     } catch (error) {
-      console.error('Error fetching options:', error);
+      console.error('Error in fetchOptions:', error);
     }
   };
 
@@ -68,10 +104,20 @@ function PublicSearch() {
         if (value) params.append(key, value);
       });
 
-      const response = await api.get(`/lawyers?${params.toString()}`);
+      const queryString = params.toString();
+      const fullUrl = `${api.defaults.baseURL}/lawyers?${queryString}`;
+      console.log('Fetching lawyers from:', fullUrl);
+      console.log('Axios baseURL:', api.defaults.baseURL);
+      console.log('Axios headers:', api.defaults.headers);
+
+      const response = await api.get(`lawyers/?${params.toString()}`);
+      console.log('Lawyers response received:', response.data);
       setLawyers(response.data.data || []);
     } catch (error) {
       console.error('Error fetching lawyers:', error);
+      console.error('Error message:', error.message);
+      console.error('Error response:', error.response);
+      console.error('Error config:', error.config);
     } finally {
       setLoading(false);
     }
@@ -98,6 +144,20 @@ function PublicSearch() {
               onChange={(e) => handleFilterChange('search', e.target.value)}
               placeholder="Enter name or email..."
             />
+          </div>
+
+          <div className="form-group">
+            <label>Provider Type</label>
+            <select
+              value={filters.provider_type}
+              onChange={(e) => handleFilterChange('provider_type', e.target.value)}
+            >
+              <option value="">All Types</option>
+              {options.providerTypes.map(type => (
+                <option key={type} value={type}>{type}</option>
+              ))}
+
+            </select>
           </div>
 
           <div className="form-group">
@@ -188,7 +248,7 @@ function PublicSearch() {
                 <p className="lawyer-contact">✉️ {lawyer.email}</p>
               )}
 
-              <Link to={`/lawyer/${lawyer.lawyer_id}`} className="btn btn-primary">
+              <Link to={`/lawyer/${lawyer.lawyer_id}`}>
                 View Details
               </Link>
             </div>
